@@ -322,11 +322,16 @@ function renderGalleryPage(galleryName: string, photos: (LivePhotoMetadata & { p
       aspect-ratio: 4/3;
       background: #000;
       cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
     }
     .media-container img {
       width: 100%;
       height: 100%;
       object-fit: cover;
+      transition: opacity 0.3s;
+    }
+    .media-container.playing img {
+      opacity: 0;
     }
     .media-container video {
       position: absolute;
@@ -341,11 +346,6 @@ function renderGalleryPage(galleryName: string, photos: (LivePhotoMetadata & { p
     .media-container.playing video {
       opacity: 1;
     }
-    @media (hover: hover) {
-      .media-container:hover video {
-        opacity: 1;
-      }
-    }
     .live-badge {
       position: absolute;
       top: 10px;
@@ -356,6 +356,10 @@ function renderGalleryPage(galleryName: string, photos: (LivePhotoMetadata & { p
       border-radius: 4px;
       font-size: 12px;
       font-weight: 500;
+      transition: background 0.3s;
+    }
+    .media-container.playing .live-badge {
+      background: rgba(255,59,48,0.8);
     }
     .photo-info {
       padding: 15px;
@@ -387,76 +391,6 @@ function renderGalleryPage(galleryName: string, photos: (LivePhotoMetadata & { p
     .download-links a:hover {
       text-decoration: underline;
     }
-
-    /* Modal styles for mobile fullscreen video */
-    .modal-overlay {
-      display: none;
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.95);
-      z-index: 1000;
-      justify-content: center;
-      align-items: center;
-      flex-direction: column;
-    }
-    .modal-overlay.active {
-      display: flex;
-    }
-    .modal-close {
-      position: absolute;
-      top: 20px;
-      right: 20px;
-      background: rgba(255, 255, 255, 0.2);
-      border: none;
-      color: #fff;
-      font-size: 24px;
-      width: 44px;
-      height: 44px;
-      border-radius: 22px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 1001;
-    }
-    .modal-close:hover {
-      background: rgba(255, 255, 255, 0.3);
-    }
-    .modal-video-container {
-      width: 100%;
-      max-width: 100vw;
-      max-height: 80vh;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
-    .modal-video {
-      max-width: 100%;
-      max-height: 80vh;
-      width: auto;
-      height: auto;
-      border-radius: 8px;
-    }
-    .modal-live-badge {
-      position: absolute;
-      top: 70px;
-      left: 20px;
-      background: rgba(0,0,0,0.6);
-      color: #fff;
-      padding: 6px 12px;
-      border-radius: 6px;
-      font-size: 14px;
-      font-weight: 500;
-    }
-    .modal-hint {
-      color: #888;
-      font-size: 14px;
-      margin-top: 20px;
-      text-align: center;
-    }
   </style>
 </head>
 <body>
@@ -472,7 +406,7 @@ function renderGalleryPage(galleryName: string, photos: (LivePhotoMetadata & { p
       <div class="photo-card">
         <div class="media-container" data-video="${photo.videoUrl}" data-photo="${photo.photoUrl}">
           <img src="${photo.photoUrl}" alt="Live Photo" loading="lazy">
-          <video src="${photo.videoUrl}" muted loop playsinline preload="metadata"></video>
+          <video muted loop playsinline preload="none"></video>
           <span class="live-badge">LIVE</span>
         </div>
         <div class="photo-info">
@@ -488,91 +422,103 @@ function renderGalleryPage(galleryName: string, photos: (LivePhotoMetadata & { p
   </div>
   `}
 
-  <!-- Modal for fullscreen video playback -->
-  <div class="modal-overlay" id="videoModal">
-    <button class="modal-close" id="modalClose">&times;</button>
-    <span class="modal-live-badge">LIVE</span>
-    <div class="modal-video-container">
-      <video class="modal-video" id="modalVideo" playsinline loop muted></video>
-    </div>
-    <p class="modal-hint">Tap anywhere to close</p>
-  </div>
-
   <script>
     document.addEventListener('DOMContentLoaded', function() {
       const containers = document.querySelectorAll('.media-container');
-      const modal = document.getElementById('videoModal');
-      const modalVideo = document.getElementById('modalVideo');
-      const modalClose = document.getElementById('modalClose');
-      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth <= 640;
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
+                       ('ontouchstart' in window) ||
+                       (window.innerWidth <= 640);
 
-      // Close modal function
-      function closeModal() {
-        modal.classList.remove('active');
-        modalVideo.pause();
-        modalVideo.currentTime = 0;
-        modalVideo.src = '';
-        document.body.style.overflow = '';
-      }
-
-      // Open modal with video
-      function openModal(videoUrl) {
-        modalVideo.src = videoUrl;
-        modal.classList.add('active');
-        document.body.style.overflow = 'hidden';
-        modalVideo.play().catch(e => console.log('Autoplay prevented:', e));
-      }
-
-      // Modal close handlers
-      modalClose.addEventListener('click', (e) => {
-        e.stopPropagation();
-        closeModal();
-      });
-
-      modal.addEventListener('click', (e) => {
-        if (e.target === modal || e.target.classList.contains('modal-video-container') || e.target.classList.contains('modal-hint')) {
-          closeModal();
-        }
-      });
-
-      // Escape key to close
-      document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && modal.classList.contains('active')) {
-          closeModal();
-        }
-      });
-
-      containers.forEach(container => {
+      // Play video function
+      function playVideo(container) {
         const video = container.querySelector('video');
         const videoUrl = container.dataset.video;
 
-        if (isMobile) {
-          // Mobile: tap to open fullscreen modal
+        // Load video source if not loaded
+        if (!video.src || video.src === '') {
+          video.src = videoUrl;
+        }
+
+        container.classList.add('playing');
+        video.play().catch(e => console.log('Play failed:', e));
+      }
+
+      // Pause video function
+      function pauseVideo(container) {
+        const video = container.querySelector('video');
+        container.classList.remove('playing');
+        video.pause();
+        video.currentTime = 0;
+      }
+
+      // Pause all other videos
+      function pauseOthers(exceptContainer) {
+        containers.forEach(c => {
+          if (c !== exceptContainer && c.classList.contains('playing')) {
+            pauseVideo(c);
+          }
+        });
+      }
+
+      if (isMobile) {
+        // Mobile: Use IntersectionObserver for autoplay on scroll
+        const observer = new IntersectionObserver((entries) => {
+          entries.forEach(entry => {
+            const container = entry.target;
+            if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
+              // Video is mostly visible, play it
+              pauseOthers(container);
+              playVideo(container);
+            } else if (!entry.isIntersecting || entry.intersectionRatio < 0.3) {
+              // Video scrolled out of view, pause it
+              pauseVideo(container);
+            }
+          });
+        }, {
+          threshold: [0, 0.3, 0.6, 1.0],
+          rootMargin: '-10% 0px -10% 0px'
+        });
+
+        containers.forEach(container => {
+          observer.observe(container);
+
+          // Tap to toggle play/pause
           container.addEventListener('click', (e) => {
             if (e.target.tagName === 'A') return;
             e.preventDefault();
-            openModal(videoUrl);
+
+            if (container.classList.contains('playing')) {
+              pauseVideo(container);
+            } else {
+              pauseOthers(container);
+              playVideo(container);
+            }
           });
-        } else {
-          // Desktop: hover to play inline
+        });
+
+        // Also try to play the first visible video on page load
+        setTimeout(() => {
+          const firstVisible = Array.from(containers).find(c => {
+            const rect = c.getBoundingClientRect();
+            return rect.top >= 0 && rect.top < window.innerHeight * 0.5;
+          });
+          if (firstVisible) {
+            playVideo(firstVisible);
+          }
+        }, 500);
+
+      } else {
+        // Desktop: hover to play
+        containers.forEach(container => {
           container.addEventListener('mouseenter', () => {
-            container.classList.add('playing');
-            video.play();
+            playVideo(container);
           });
 
           container.addEventListener('mouseleave', () => {
-            container.classList.remove('playing');
-            video.pause();
-            video.currentTime = 0;
+            pauseVideo(container);
           });
-
-          container.addEventListener('click', (e) => {
-            if (e.target.tagName === 'A') return;
-            // On desktop click, also open modal for better viewing
-            openModal(videoUrl);
-          });
-        }
-      });
+        });
+      }
     });
   </script>
 </body>
