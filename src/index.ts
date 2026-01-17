@@ -37,7 +37,7 @@ app.get('/health', (req, res) => {
 app.get('/', (req, res) => {
   res.json({
     name: 'LivePhoto Server',
-    version: '1.2.0',
+    version: '1.2.1',
     endpoints: {
       upload: 'POST /api/upload',
       photos: 'GET /api/photos',
