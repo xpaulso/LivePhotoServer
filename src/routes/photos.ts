@@ -171,10 +171,16 @@ router.get('/:id', async (req: Request, res: Response) => {
   }
 });
 
-// Delete photo by ID
+// Delete photo by ID (requires gallery password)
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const { password } = req.body;
+
+    if (!password) {
+      return res.status(400).json({ error: 'Password is required' });
+    }
+
     const uploadDir = getUploadDir();
 
     if (!fs.existsSync(uploadDir)) {
@@ -197,6 +203,15 @@ router.delete('/:id', async (req: Request, res: Response) => {
           const metadata = JSON.parse(content) as LivePhotoMetadata;
 
           if (metadata.id === id || metadata.id.startsWith(id)) {
+            // Verify password
+            if (!metadata.galleryDeletePassword) {
+              return res.status(403).json({ error: 'Photo does not have a delete password configured' });
+            }
+
+            if (password.toUpperCase() !== metadata.galleryDeletePassword.toUpperCase()) {
+              return res.status(403).json({ error: 'Invalid password' });
+            }
+
             // Delete all related files
             const photoPath = path.join(dirPath, metadata.photoFile);
             const videoPath = path.join(dirPath, metadata.videoFile);
@@ -204,6 +219,8 @@ router.delete('/:id', async (req: Request, res: Response) => {
             if (fs.existsSync(photoPath)) fs.unlinkSync(photoPath);
             if (fs.existsSync(videoPath)) fs.unlinkSync(videoPath);
             fs.unlinkSync(metadataPath);
+
+            console.log(`Deleted photo: ${metadata.id} from gallery ${metadata.galleryName}`);
 
             return res.json({ success: true, deleted: metadata.id });
           }
