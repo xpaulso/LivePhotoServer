@@ -15,6 +15,7 @@ export interface LivePhotoMetadata {
   videoUrl?: string;
   galleryId?: string;
   galleryName?: string;
+  galleryDeletePassword?: string;
 }
 
 export interface GalleryInfo {

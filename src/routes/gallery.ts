@@ -105,6 +105,62 @@ router.get('/:galleryId', async (req: Request, res: Response) => {
   }
 });
 
+// Delete gallery API endpoint (requires password)
+router.delete('/:galleryId', async (req: Request, res: Response) => {
+  try {
+    const { galleryId } = req.params;
+    const { password } = req.body;
+
+    if (!password) {
+      return res.status(400).json({ error: 'Password is required' });
+    }
+
+    const uploadDir = getUploadDir();
+    const galleryPath = path.join(uploadDir, galleryId);
+
+    if (!fs.existsSync(galleryPath)) {
+      return res.status(404).json({ error: 'Gallery not found' });
+    }
+
+    // Read a metadata file to verify the password
+    const files = fs.readdirSync(galleryPath);
+    const metadataFiles = files.filter(f => f.endsWith('_metadata.json'));
+
+    if (metadataFiles.length === 0) {
+      return res.status(404).json({ error: 'Gallery has no photos' });
+    }
+
+    // Check password from first metadata file
+    const firstMetadataPath = path.join(galleryPath, metadataFiles[0]);
+    const content = fs.readFileSync(firstMetadataPath, 'utf-8');
+    const metadata = JSON.parse(content) as LivePhotoMetadata;
+
+    if (!metadata.galleryDeletePassword) {
+      return res.status(403).json({ error: 'Gallery does not have a delete password configured' });
+    }
+
+    if (password.toUpperCase() !== metadata.galleryDeletePassword.toUpperCase()) {
+      return res.status(403).json({ error: 'Invalid password' });
+    }
+
+    // Password verified - delete all files in the gallery
+    for (const file of files) {
+      const filePath = path.join(galleryPath, file);
+      fs.unlinkSync(filePath);
+    }
+
+    // Remove the gallery directory
+    fs.rmdirSync(galleryPath);
+
+    console.log(`Deleted gallery: ${galleryId} (${metadata.galleryName})`);
+
+    res.json({ success: true, deleted: galleryId });
+  } catch (error) {
+    console.error('Error deleting gallery:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
 function renderGalleryListPage(galleries: GalleryInfo[]): string {
   return `<!DOCTYPE html>
 <html lang="en">

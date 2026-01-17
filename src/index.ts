@@ -25,7 +25,8 @@ app.use('/files', express.static(path.join(process.cwd(), process.env.UPLOAD_DIR
 // Routes
 app.use('/api/upload', uploadRouter);
 app.use('/api/photos', photosRouter);
-app.use('/gallery', galleryRouter);
+app.use('/api/gallery', galleryRouter);  // API endpoints
+app.use('/gallery', galleryRouter);       // HTML pages
 
 // Health check
 app.get('/health', (req, res) => {
