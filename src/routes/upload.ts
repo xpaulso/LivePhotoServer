@@ -3,15 +3,28 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
-import sharp from 'sharp';
 import { getUploadDir, saveMetadata, LivePhotoMetadata } from '../utils/storage';
+
+// Dynamic import for heic-convert (ESM module)
+let heicConvert: any = null;
+async function getHeicConvert() {
+  if (!heicConvert) {
+    heicConvert = (await import('heic-convert')).default;
+  }
+  return heicConvert;
+}
 
 // Convert HEIC to JPEG
 async function convertHeicToJpeg(heicPath: string): Promise<string> {
+  const convert = await getHeicConvert();
+  const inputBuffer = fs.readFileSync(heicPath);
+  const outputBuffer = await convert({
+    buffer: inputBuffer,
+    format: 'JPEG',
+    quality: 0.92
+  });
   const jpegPath = heicPath.replace(/\.heic$/i, '.jpg');
-  await sharp(heicPath)
-    .jpeg({ quality: 92 })
-    .toFile(jpegPath);
+  fs.writeFileSync(jpegPath, outputBuffer);
   // Remove original HEIC file
   fs.unlinkSync(heicPath);
   return jpegPath;
