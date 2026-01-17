@@ -254,7 +254,7 @@ function renderGalleryPage(galleryName: string, photos: (LivePhotoMetadata & { p
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>${escapeHtml(galleryName)} - Live Photos</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -294,6 +294,15 @@ function renderGalleryPage(galleryName: string, photos: (LivePhotoMetadata & { p
       max-width: 1400px;
       margin: 0 auto;
     }
+    @media (max-width: 640px) {
+      .gallery {
+        grid-template-columns: 1fr;
+        gap: 15px;
+      }
+      body {
+        padding: 15px;
+      }
+    }
     .photo-card {
       background: #2a2a2a;
       border-radius: 12px;
@@ -302,6 +311,11 @@ function renderGalleryPage(galleryName: string, photos: (LivePhotoMetadata & { p
     }
     .photo-card:hover {
       transform: scale(1.02);
+    }
+    @media (max-width: 640px) {
+      .photo-card:hover {
+        transform: none;
+      }
     }
     .media-container {
       position: relative;
@@ -373,6 +387,76 @@ function renderGalleryPage(galleryName: string, photos: (LivePhotoMetadata & { p
     .download-links a:hover {
       text-decoration: underline;
     }
+
+    /* Modal styles for mobile fullscreen video */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.95);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+    }
+    .modal-overlay.active {
+      display: flex;
+    }
+    .modal-close {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: rgba(255, 255, 255, 0.2);
+      border: none;
+      color: #fff;
+      font-size: 24px;
+      width: 44px;
+      height: 44px;
+      border-radius: 22px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1001;
+    }
+    .modal-close:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+    .modal-video-container {
+      width: 100%;
+      max-width: 100vw;
+      max-height: 80vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .modal-video {
+      max-width: 100%;
+      max-height: 80vh;
+      width: auto;
+      height: auto;
+      border-radius: 8px;
+    }
+    .modal-live-badge {
+      position: absolute;
+      top: 70px;
+      left: 20px;
+      background: rgba(0,0,0,0.6);
+      color: #fff;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .modal-hint {
+      color: #888;
+      font-size: 14px;
+      margin-top: 20px;
+      text-align: center;
+    }
   </style>
 </head>
 <body>
@@ -386,9 +470,9 @@ function renderGalleryPage(galleryName: string, photos: (LivePhotoMetadata & { p
   <div class="gallery">
     ${photos.map(photo => `
       <div class="photo-card">
-        <div class="media-container" data-video="${photo.videoUrl}">
+        <div class="media-container" data-video="${photo.videoUrl}" data-photo="${photo.photoUrl}">
           <img src="${photo.photoUrl}" alt="Live Photo" loading="lazy">
-          <video src="${photo.videoUrl}" muted loop playsinline></video>
+          <video src="${photo.videoUrl}" muted loop playsinline preload="metadata"></video>
           <span class="live-badge">LIVE</span>
         </div>
         <div class="photo-info">
@@ -404,43 +488,90 @@ function renderGalleryPage(galleryName: string, photos: (LivePhotoMetadata & { p
   </div>
   `}
 
+  <!-- Modal for fullscreen video playback -->
+  <div class="modal-overlay" id="videoModal">
+    <button class="modal-close" id="modalClose">&times;</button>
+    <span class="modal-live-badge">LIVE</span>
+    <div class="modal-video-container">
+      <video class="modal-video" id="modalVideo" playsinline loop muted></video>
+    </div>
+    <p class="modal-hint">Tap anywhere to close</p>
+  </div>
+
   <script>
     document.addEventListener('DOMContentLoaded', function() {
       const containers = document.querySelectorAll('.media-container');
+      const modal = document.getElementById('videoModal');
+      const modalVideo = document.getElementById('modalVideo');
+      const modalClose = document.getElementById('modalClose');
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth <= 640;
+
+      // Close modal function
+      function closeModal() {
+        modal.classList.remove('active');
+        modalVideo.pause();
+        modalVideo.currentTime = 0;
+        modalVideo.src = '';
+        document.body.style.overflow = '';
+      }
+
+      // Open modal with video
+      function openModal(videoUrl) {
+        modalVideo.src = videoUrl;
+        modal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+        modalVideo.play().catch(e => console.log('Autoplay prevented:', e));
+      }
+
+      // Modal close handlers
+      modalClose.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeModal();
+      });
+
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal || e.target.classList.contains('modal-video-container') || e.target.classList.contains('modal-hint')) {
+          closeModal();
+        }
+      });
+
+      // Escape key to close
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal.classList.contains('active')) {
+          closeModal();
+        }
+      });
 
       containers.forEach(container => {
         const video = container.querySelector('video');
+        const videoUrl = container.dataset.video;
 
-        container.addEventListener('mouseenter', () => {
-          container.classList.add('playing');
-          video.play();
-        });
+        if (isMobile) {
+          // Mobile: tap to open fullscreen modal
+          container.addEventListener('click', (e) => {
+            if (e.target.tagName === 'A') return;
+            e.preventDefault();
+            openModal(videoUrl);
+          });
+        } else {
+          // Desktop: hover to play inline
+          container.addEventListener('mouseenter', () => {
+            container.classList.add('playing');
+            video.play();
+          });
 
-        container.addEventListener('mouseleave', () => {
-          container.classList.remove('playing');
-          video.pause();
-          video.currentTime = 0;
-        });
-
-        container.addEventListener('click', (e) => {
-          if (e.target.tagName === 'A') return;
-
-          if (container.classList.contains('playing')) {
+          container.addEventListener('mouseleave', () => {
             container.classList.remove('playing');
             video.pause();
             video.currentTime = 0;
-          } else {
-            containers.forEach(c => {
-              if (c !== container) {
-                c.classList.remove('playing');
-                c.querySelector('video').pause();
-                c.querySelector('video').currentTime = 0;
-              }
-            });
-            container.classList.add('playing');
-            video.play();
-          }
-        });
+          });
+
+          container.addEventListener('click', (e) => {
+            if (e.target.tagName === 'A') return;
+            // On desktop click, also open modal for better viewing
+            openModal(videoUrl);
+          });
+        }
       });
     });
   </script>
