@@ -87,6 +87,7 @@ router.get('/', async (req: Request, res: Response) => {
       position: relative;
       aspect-ratio: 4/3;
       background: #000;
+      cursor: pointer;
     }
     .media-container img {
       width: 100%;
@@ -103,8 +104,13 @@ router.get('/', async (req: Request, res: Response) => {
       opacity: 0;
       transition: opacity 0.3s;
     }
-    .photo-card:hover video {
+    .media-container.playing video {
       opacity: 1;
+    }
+    @media (hover: hover) {
+      .media-container:hover video {
+        opacity: 1;
+      }
     }
     .live-badge {
       position: absolute;
@@ -157,9 +163,9 @@ router.get('/', async (req: Request, res: Response) => {
   <div class="gallery">
     ${photos.map(photo => `
       <div class="photo-card">
-        <div class="media-container">
+        <div class="media-container" data-video="${photo.videoUrl}">
           <img src="${photo.photoUrl}" alt="Live Photo" loading="lazy">
-          <video src="${photo.videoUrl}" muted loop playsinline onmouseenter="this.play()" onmouseleave="this.pause();this.currentTime=0;"></video>
+          <video src="${photo.videoUrl}" muted loop playsinline></video>
           <span class="live-badge">LIVE</span>
         </div>
         <div class="photo-info">
@@ -176,11 +182,48 @@ router.get('/', async (req: Request, res: Response) => {
   `}
 
   <script>
-    function formatSize(bytes) {
-      if (bytes < 1024) return bytes + ' B';
-      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-    }
+    document.addEventListener('DOMContentLoaded', function() {
+      const containers = document.querySelectorAll('.media-container');
+
+      containers.forEach(container => {
+        const video = container.querySelector('video');
+
+        // Desktop: hover to play
+        container.addEventListener('mouseenter', () => {
+          container.classList.add('playing');
+          video.play();
+        });
+
+        container.addEventListener('mouseleave', () => {
+          container.classList.remove('playing');
+          video.pause();
+          video.currentTime = 0;
+        });
+
+        // Mobile: touch/click to toggle
+        container.addEventListener('click', (e) => {
+          // Don't trigger on download links
+          if (e.target.tagName === 'A') return;
+
+          if (container.classList.contains('playing')) {
+            container.classList.remove('playing');
+            video.pause();
+            video.currentTime = 0;
+          } else {
+            // Stop other videos
+            containers.forEach(c => {
+              if (c !== container) {
+                c.classList.remove('playing');
+                c.querySelector('video').pause();
+                c.querySelector('video').currentTime = 0;
+              }
+            });
+            container.classList.add('playing');
+            video.play();
+          }
+        });
+      });
+    });
   </script>
 </body>
 </html>`;
