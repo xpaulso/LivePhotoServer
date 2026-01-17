@@ -35,9 +35,9 @@ const router = Router();
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    // Organize by date
-    const date = new Date().toISOString().split('T')[0];
-    const uploadPath = path.join(getUploadDir(), date);
+    // Organize by gallery ID (use 'default' if no gallery specified)
+    const galleryId = req.body?.gallery_id || 'default';
+    const uploadPath = path.join(getUploadDir(), galleryId);
 
     if (!fs.existsSync(uploadPath)) {
       fs.mkdirSync(uploadPath, { recursive: true });
@@ -110,6 +110,10 @@ router.post('/', upload.fields([
       }
     }
 
+    // Extract gallery info
+    const galleryId = req.body.gallery_id || 'default';
+    const galleryName = req.body.gallery_name || 'Default Gallery';
+
     // Extract metadata from form data
     const metadata: LivePhotoMetadata = {
       id: req.body.id || uuidv4(),
@@ -120,25 +124,27 @@ router.post('/', upload.fields([
       creationDate: req.body.creation_date || new Date().toISOString(),
       uploadDate: new Date().toISOString(),
       latitude: req.body.latitude ? parseFloat(req.body.latitude) : undefined,
-      longitude: req.body.longitude ? parseFloat(req.body.longitude) : undefined
+      longitude: req.body.longitude ? parseFloat(req.body.longitude) : undefined,
+      galleryId: galleryId,
+      galleryName: galleryName
     };
 
     // Save metadata JSON
-    const date = new Date().toISOString().split('T')[0];
-    const metadataPath = path.join(getUploadDir(), date, `${metadata.id.substring(0, 8)}_metadata.json`);
+    const metadataPath = path.join(getUploadDir(), galleryId, `${metadata.id.substring(0, 8)}_metadata.json`);
     await saveMetadata(metadataPath, metadata);
 
-    console.log(`Received Live Photo: ${metadata.id}`);
+    console.log(`Received Live Photo: ${metadata.id} -> Gallery: ${galleryName}`);
     console.log(`  Photo: ${photoFile.filename} (${(photoFile.size / 1024).toFixed(1)} KB)`);
     console.log(`  Video: ${videoFile.filename} (${(videoFile.size / 1024).toFixed(1)} KB)`);
 
     res.status(201).json({
       success: true,
       id: metadata.id,
+      galleryId: galleryId,
       files: {
-        photo: `/files/${date}/${finalPhotoFilename}`,
-        video: `/files/${date}/${videoFile.filename}`,
-        metadata: `/files/${date}/${path.basename(metadataPath)}`
+        photo: `/files/${galleryId}/${finalPhotoFilename}`,
+        video: `/files/${galleryId}/${videoFile.filename}`,
+        metadata: `/files/${galleryId}/${path.basename(metadataPath)}`
       }
     });
   } catch (error) {

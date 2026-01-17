@@ -1,29 +1,99 @@
 import { Router, Request, Response } from 'express';
 import fs from 'fs';
 import path from 'path';
-import { getUploadDir, LivePhotoMetadata } from '../utils/storage';
+import { getUploadDir, LivePhotoMetadata, GalleryInfo } from '../utils/storage';
 
 const router = Router();
 
-// Get all photos
+// Get all galleries
+router.get('/galleries', async (req: Request, res: Response) => {
+  try {
+    const uploadDir = getUploadDir();
+    const galleries: GalleryInfo[] = [];
+
+    if (!fs.existsSync(uploadDir)) {
+      return res.json({ galleries: [], count: 0 });
+    }
+
+    // Read all gallery directories
+    const galleryDirs = fs.readdirSync(uploadDir).filter(dir => {
+      const fullPath = path.join(uploadDir, dir);
+      return fs.statSync(fullPath).isDirectory();
+    });
+
+    for (const galleryDir of galleryDirs) {
+      const dirPath = path.join(uploadDir, galleryDir);
+      const files = fs.readdirSync(dirPath);
+      const metadataFiles = files.filter(f => f.endsWith('_metadata.json'));
+
+      let galleryName = galleryDir;
+      let lastUpdated = new Date(0).toISOString();
+
+      // Get gallery name from first metadata file
+      if (metadataFiles.length > 0) {
+        const firstMetadata = path.join(dirPath, metadataFiles[0]);
+        const content = fs.readFileSync(firstMetadata, 'utf-8');
+        const metadata = JSON.parse(content) as LivePhotoMetadata;
+        galleryName = metadata.galleryName || galleryDir;
+
+        // Find latest upload date
+        for (const file of metadataFiles) {
+          const metadataPath = path.join(dirPath, file);
+          const metaContent = fs.readFileSync(metadataPath, 'utf-8');
+          const meta = JSON.parse(metaContent) as LivePhotoMetadata;
+          if (new Date(meta.uploadDate) > new Date(lastUpdated)) {
+            lastUpdated = meta.uploadDate;
+          }
+        }
+      }
+
+      galleries.push({
+        id: galleryDir,
+        name: galleryName,
+        photoCount: metadataFiles.length,
+        lastUpdated
+      });
+    }
+
+    // Sort by last updated, newest first
+    galleries.sort((a, b) =>
+      new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime()
+    );
+
+    res.json({
+      galleries,
+      count: galleries.length
+    });
+  } catch (error) {
+    console.error('Error listing galleries:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// Get all photos (optionally filtered by gallery)
 router.get('/', async (req: Request, res: Response) => {
   try {
     const uploadDir = getUploadDir();
+    const galleryId = req.query.gallery as string | undefined;
     const photos: LivePhotoMetadata[] = [];
 
     if (!fs.existsSync(uploadDir)) {
       return res.json({ photos: [], count: 0 });
     }
 
-    // Read all date directories
-    const dateDirs = fs.readdirSync(uploadDir).filter(dir => {
+    // Read gallery directories (or just one if filtered)
+    let galleryDirs = fs.readdirSync(uploadDir).filter(dir => {
       const fullPath = path.join(uploadDir, dir);
       return fs.statSync(fullPath).isDirectory();
     });
 
+    if (galleryId) {
+      galleryDirs = galleryDirs.filter(dir => dir === galleryId);
+    }
+
     // Collect all metadata files
-    for (const dateDir of dateDirs) {
-      const dirPath = path.join(uploadDir, dateDir);
+    for (const galleryDir of galleryDirs) {
+      const dirPath = path.join(uploadDir, galleryDir);
       const files = fs.readdirSync(dirPath);
 
       for (const file of files) {
@@ -35,8 +105,8 @@ router.get('/', async (req: Request, res: Response) => {
           // Add file URLs
           photos.push({
             ...metadata,
-            photoUrl: `/files/${dateDir}/${metadata.photoFile}`,
-            videoUrl: `/files/${dateDir}/${metadata.videoFile}`
+            photoUrl: `/files/${galleryDir}/${metadata.photoFile}`,
+            videoUrl: `/files/${galleryDir}/${metadata.videoFile}`
           });
         }
       }
@@ -67,14 +137,14 @@ router.get('/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Photo not found' });
     }
 
-    // Search through date directories
-    const dateDirs = fs.readdirSync(uploadDir).filter(dir => {
+    // Search through gallery directories
+    const galleryDirs = fs.readdirSync(uploadDir).filter(dir => {
       const fullPath = path.join(uploadDir, dir);
       return fs.statSync(fullPath).isDirectory();
     });
 
-    for (const dateDir of dateDirs) {
-      const dirPath = path.join(uploadDir, dateDir);
+    for (const galleryDir of galleryDirs) {
+      const dirPath = path.join(uploadDir, galleryDir);
       const files = fs.readdirSync(dirPath);
 
       for (const file of files) {
@@ -86,8 +156,8 @@ router.get('/:id', async (req: Request, res: Response) => {
           if (metadata.id === id || metadata.id.startsWith(id)) {
             return res.json({
               ...metadata,
-              photoUrl: `/files/${dateDir}/${metadata.photoFile}`,
-              videoUrl: `/files/${dateDir}/${metadata.videoFile}`
+              photoUrl: `/files/${galleryDir}/${metadata.photoFile}`,
+              videoUrl: `/files/${galleryDir}/${metadata.videoFile}`
             });
           }
         }
@@ -111,13 +181,13 @@ router.delete('/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Photo not found' });
     }
 
-    const dateDirs = fs.readdirSync(uploadDir).filter(dir => {
+    const galleryDirs = fs.readdirSync(uploadDir).filter(dir => {
       const fullPath = path.join(uploadDir, dir);
       return fs.statSync(fullPath).isDirectory();
     });
 
-    for (const dateDir of dateDirs) {
-      const dirPath = path.join(uploadDir, dateDir);
+    for (const galleryDir of galleryDirs) {
+      const dirPath = path.join(uploadDir, galleryDir);
       const files = fs.readdirSync(dirPath);
 
       for (const file of files) {

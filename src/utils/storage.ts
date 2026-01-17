@@ -13,6 +13,15 @@ export interface LivePhotoMetadata {
   longitude?: number;
   photoUrl?: string;
   videoUrl?: string;
+  galleryId?: string;
+  galleryName?: string;
+}
+
+export interface GalleryInfo {
+  id: string;
+  name: string;
+  photoCount: number;
+  lastUpdated: string;
 }
 
 export function getUploadDir(): string {
