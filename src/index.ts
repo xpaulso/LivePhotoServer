@@ -4,6 +4,7 @@ import path from 'path';
 import { config } from 'dotenv';
 import { uploadRouter } from './routes/upload';
 import { photosRouter } from './routes/photos';
+import { galleryRouter } from './routes/gallery';
 import { ensureUploadDir } from './utils/storage';
 
 config();
@@ -24,6 +25,7 @@ app.use('/files', express.static(path.join(process.cwd(), process.env.UPLOAD_DIR
 // Routes
 app.use('/api/upload', uploadRouter);
 app.use('/api/photos', photosRouter);
+app.use('/gallery', galleryRouter);
 
 // Health check
 app.get('/health', (req, res) => {
