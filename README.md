@@ -5,8 +5,10 @@ A Node.js/Express server for receiving and storing Live Photo uploads from the L
 ## Features
 
 - Receives Live Photo uploads (photo + video pairs)
-- Organizes files by date
-- Stores metadata as JSON
+- **Gallery organization** with custom names
+- **Password-protected galleries** for easy sharing
+- Automatic HEIC to JPEG conversion for browser compatibility
+- Web gallery interface with mobile-friendly video playback
 - REST API for listing, retrieving, and deleting photos
 - Serves uploaded files statically
 
@@ -47,6 +49,25 @@ npm run build
 npm start
 ```
 
+## Web Interface
+
+### Gallery List
+```
+GET /gallery
+```
+Browse all galleries with photo counts and last updated dates.
+
+### Single Gallery
+```
+GET /gallery/:galleryId?p=PASSWORD
+```
+View photos in a gallery. If the gallery has a view password, include it as the `p` query parameter for access.
+
+**Features:**
+- Desktop: Hover over photos to play Live Photo videos
+- Mobile: Videos autoplay when scrolled into view, tap to play/pause
+- Download links for individual photos and videos
+
 ## API Endpoints
 
 ### Upload Live Photo
@@ -61,11 +82,34 @@ Fields:
 - creation_date: (optional) Original creation date
 - latitude: (optional) GPS latitude
 - longitude: (optional) GPS longitude
+- gallery_id: (optional) Gallery UUID
+- gallery_name: (optional) Gallery display name
+- gallery_delete_password: (optional) Password for deleting gallery
+- gallery_view_password: (optional) Password for viewing gallery
 ```
 
-### List All Photos
+### List All Galleries
+```
+GET /api/photos/galleries
+
+Response:
+{
+  "galleries": [
+    {
+      "id": "uuid",
+      "name": "My Gallery",
+      "photoCount": 5,
+      "lastUpdated": "2024-01-15T10:30:00.000Z"
+    }
+  ],
+  "count": 1
+}
+```
+
+### List Photos
 ```
 GET /api/photos
+GET /api/photos?gallery=GALLERY_ID
 
 Response:
 {
@@ -81,10 +125,10 @@ GET /api/photos/:id
 Response:
 {
   "id": "abc123",
-  "photoFile": "abc123_photo.HEIC",
-  "videoFile": "abc123_video.MOV",
-  "photoUrl": "/files/2024-01-15/abc123_photo.HEIC",
-  "videoUrl": "/files/2024-01-15/abc123_video.MOV",
+  "photoFile": "abc123_photo.jpg",
+  "videoFile": "abc123_video.mov",
+  "photoUrl": "/files/gallery-id/abc123_photo.jpg",
+  "videoUrl": "/files/gallery-id/abc123_video.mov",
   ...
 }
 ```
@@ -92,11 +136,34 @@ Response:
 ### Delete Photo
 ```
 DELETE /api/photos/:id
+Content-Type: application/json
+
+Body:
+{
+  "password": "DELETE_PASSWORD"
+}
 
 Response:
 {
   "success": true,
   "deleted": "abc123..."
+}
+```
+
+### Delete Gallery
+```
+DELETE /api/gallery/:galleryId
+Content-Type: application/json
+
+Body:
+{
+  "password": "DELETE_PASSWORD"
+}
+
+Response:
+{
+  "success": true,
+  "deleted": "gallery-uuid"
 }
 ```
 
@@ -113,21 +180,29 @@ Response:
 
 ### Access Files
 ```
-GET /files/:date/:filename
+GET /files/:galleryId/:filename
 ```
 
 ## File Structure
 
-Uploaded files are organized by date:
+Uploaded files are organized by gallery:
 ```
 uploads/
-├── 2024-01-15/
-│   ├── abc123_photo.HEIC
-│   ├── abc123_video.MOV
+├── gallery-uuid-1/
+│   ├── abc123_photo.jpg
+│   ├── abc123_video.mov
 │   └── abc123_metadata.json
-└── 2024-01-16/
+└── gallery-uuid-2/
     └── ...
 ```
+
+## Sharing Galleries
+
+Each gallery can have a view password for easy sharing:
+
+1. Upload photos to a gallery with a view password
+2. Share the URL: `http://your-server/gallery/GALLERY-ID?p=PASSWORD`
+3. Recipients can view photos without needing the delete password
 
 ## License
 
