@@ -13,6 +13,7 @@ router.get('/', async (req: Request, res: Response) => {
 
     if (fs.existsSync(uploadDir)) {
       const galleryDirs = fs.readdirSync(uploadDir).filter(dir => {
+        if (dir === '.temp') return false;
         const fullPath = path.join(uploadDir, dir);
         return fs.statSync(fullPath).isDirectory();
       });

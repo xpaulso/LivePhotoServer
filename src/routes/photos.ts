@@ -15,8 +15,9 @@ router.get('/galleries', async (req: Request, res: Response) => {
       return res.json({ galleries: [], count: 0 });
     }
 
-    // Read all gallery directories
+    // Read all gallery directories (excluding .temp)
     const galleryDirs = fs.readdirSync(uploadDir).filter(dir => {
+      if (dir === '.temp') return false;
       const fullPath = path.join(uploadDir, dir);
       return fs.statSync(fullPath).isDirectory();
     });
@@ -83,8 +84,9 @@ router.get('/', async (req: Request, res: Response) => {
       return res.json({ photos: [], count: 0 });
     }
 
-    // Read gallery directories (or just one if filtered)
+    // Read gallery directories (or just one if filtered, excluding .temp)
     let galleryDirs = fs.readdirSync(uploadDir).filter(dir => {
+      if (dir === '.temp') return false;
       const fullPath = path.join(uploadDir, dir);
       return fs.statSync(fullPath).isDirectory();
     });
@@ -161,8 +163,9 @@ router.get('/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Photo not found' });
     }
 
-    // Search through gallery directories
+    // Search through gallery directories (excluding .temp)
     const galleryDirs = fs.readdirSync(uploadDir).filter(dir => {
+      if (dir === '.temp') return false;
       const fullPath = path.join(uploadDir, dir);
       return fs.statSync(fullPath).isDirectory();
     });
@@ -212,6 +215,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
     }
 
     const galleryDirs = fs.readdirSync(uploadDir).filter(dir => {
+      if (dir === '.temp') return false;
       const fullPath = path.join(uploadDir, dir);
       return fs.statSync(fullPath).isDirectory();
     });
