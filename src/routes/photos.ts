@@ -71,10 +71,12 @@ router.get('/galleries', async (req: Request, res: Response) => {
 });
 
 // Get all photos (optionally filtered by gallery)
+// When filtering by gallery, requires view password via ?p= query param
 router.get('/', async (req: Request, res: Response) => {
   try {
     const uploadDir = getUploadDir();
     const galleryId = req.query.gallery as string | undefined;
+    const providedPassword = req.query.p as string | undefined;
     const photos: LivePhotoMetadata[] = [];
 
     if (!fs.existsSync(uploadDir)) {
@@ -89,6 +91,28 @@ router.get('/', async (req: Request, res: Response) => {
 
     if (galleryId) {
       galleryDirs = galleryDirs.filter(dir => dir === galleryId);
+
+      // Check view password for specific gallery
+      if (galleryDirs.length > 0) {
+        const dirPath = path.join(uploadDir, galleryDirs[0]);
+        const files = fs.readdirSync(dirPath);
+        const metadataFiles = files.filter(f => f.endsWith('_metadata.json'));
+
+        if (metadataFiles.length > 0) {
+          const firstMetadata = path.join(dirPath, metadataFiles[0]);
+          const content = fs.readFileSync(firstMetadata, 'utf-8');
+          const metadata = JSON.parse(content) as LivePhotoMetadata;
+
+          if (metadata.galleryViewPassword) {
+            if (!providedPassword) {
+              return res.status(401).json({ error: 'Password required', needsPassword: true });
+            }
+            if (providedPassword.toUpperCase() !== metadata.galleryViewPassword.toUpperCase()) {
+              return res.status(403).json({ error: 'Invalid password' });
+            }
+          }
+        }
+      }
     }
 
     // Collect all metadata files

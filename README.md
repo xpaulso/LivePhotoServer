@@ -109,7 +109,7 @@ Response:
 ### List Photos
 ```
 GET /api/photos
-GET /api/photos?gallery=GALLERY_ID
+GET /api/photos?gallery=GALLERY_ID&p=VIEW_PASSWORD
 
 Response:
 {
@@ -117,6 +117,8 @@ Response:
   "count": 10
 }
 ```
+
+**Note:** When filtering by gallery ID, the view password is required via the `p` query parameter if the gallery is password-protected. Returns `401` if password is missing or `403` if incorrect.
 
 ### Get Single Photo
 ```
