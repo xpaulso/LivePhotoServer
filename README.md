@@ -203,8 +203,12 @@ uploads/
 Each gallery can have a view password for easy sharing:
 
 1. Upload photos to a gallery with a view password
-2. Share the URL: `http://your-server/gallery/GALLERY-ID?p=PASSWORD`
+2. Share the URL: `https://your-server/gallery/GALLERY-ID?p=PASSWORD`
 3. Recipients can view photos without needing the delete password
+
+## Version
+
+Current version: **1.3.0**
 
 ## License
 
