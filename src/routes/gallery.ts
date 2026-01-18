@@ -66,10 +66,12 @@ router.get('/', async (req: Request, res: Response) => {
 router.get('/:galleryId', async (req: Request, res: Response) => {
   try {
     const { galleryId } = req.params;
+    const providedPassword = req.query.p as string | undefined;
     const uploadDir = getUploadDir();
     const galleryPath = path.join(uploadDir, galleryId);
     const photos: (LivePhotoMetadata & { photoUrl: string; videoUrl: string })[] = [];
     let galleryName = galleryId;
+    let galleryViewPassword: string | undefined;
 
     if (fs.existsSync(galleryPath)) {
       const files = fs.readdirSync(galleryPath);
@@ -82,6 +84,9 @@ router.get('/:galleryId', async (req: Request, res: Response) => {
 
           if (metadata.galleryName) {
             galleryName = metadata.galleryName;
+          }
+          if (metadata.galleryViewPassword) {
+            galleryViewPassword = metadata.galleryViewPassword;
           }
 
           photos.push({
@@ -97,7 +102,19 @@ router.get('/:galleryId', async (req: Request, res: Response) => {
       );
     }
 
-    const html = renderGalleryPage(galleryName, photos);
+    // Check if gallery requires a password
+    if (galleryViewPassword) {
+      if (!providedPassword) {
+        const html = renderPasswordPage(galleryId, galleryName, 'This gallery requires a password to view.');
+        return res.type('html').send(html);
+      }
+      if (providedPassword.toUpperCase() !== galleryViewPassword.toUpperCase()) {
+        const html = renderPasswordPage(galleryId, galleryName, 'Incorrect password. Please try again.');
+        return res.type('html').send(html);
+      }
+    }
+
+    const html = renderGalleryPage(galleryName, photos, providedPassword);
     res.type('html').send(html);
   } catch (error) {
     console.error('Error rendering gallery:', error);
@@ -249,7 +266,105 @@ function renderGalleryListPage(galleries: GalleryInfo[]): string {
 </html>`;
 }
 
-function renderGalleryPage(galleryName: string, photos: (LivePhotoMetadata & { photoUrl: string; videoUrl: string })[]): string {
+function renderPasswordPage(galleryId: string, galleryName: string, message: string): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(galleryName)} - Password Required</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a1a;
+      color: #fff;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .password-form {
+      background: #2a2a2a;
+      border-radius: 12px;
+      padding: 40px;
+      max-width: 400px;
+      width: 100%;
+      text-align: center;
+    }
+    h1 {
+      font-weight: 300;
+      font-size: 1.5em;
+      margin-bottom: 10px;
+    }
+    .message {
+      color: #888;
+      margin-bottom: 30px;
+      font-size: 14px;
+    }
+    .message.error {
+      color: #ff6b6b;
+    }
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+    input[type="password"] {
+      padding: 12px 16px;
+      border: none;
+      border-radius: 8px;
+      background: #3a3a3a;
+      color: #fff;
+      font-size: 16px;
+      text-align: center;
+      letter-spacing: 2px;
+    }
+    input[type="password"]::placeholder {
+      color: #666;
+      letter-spacing: normal;
+    }
+    button {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      background: #4a9eff;
+      color: #fff;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button:hover {
+      background: #3a8eef;
+    }
+    .back-link {
+      color: #4a9eff;
+      text-decoration: none;
+      font-size: 14px;
+      display: inline-block;
+      margin-top: 20px;
+    }
+    .back-link:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="password-form">
+    <h1>${escapeHtml(galleryName)}</h1>
+    <p class="message${message.includes('Incorrect') ? ' error' : ''}">${escapeHtml(message)}</p>
+    <form method="GET" action="/gallery/${galleryId}">
+      <input type="password" name="p" placeholder="Enter password" required autofocus>
+      <button type="submit">View Gallery</button>
+    </form>
+    <a href="/gallery" class="back-link">&larr; All Galleries</a>
+  </div>
+</body>
+</html>`;
+}
+
+function renderGalleryPage(galleryName: string, photos: (LivePhotoMetadata & { photoUrl: string; videoUrl: string })[], viewPassword?: string): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>

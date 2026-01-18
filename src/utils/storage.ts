@@ -16,6 +16,7 @@ export interface LivePhotoMetadata {
   galleryId?: string;
   galleryName?: string;
   galleryDeletePassword?: string;
+  galleryViewPassword?: string;
 }
 
 export interface GalleryInfo {

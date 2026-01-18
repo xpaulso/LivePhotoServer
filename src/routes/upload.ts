@@ -134,6 +134,7 @@ router.post('/', upload.fields([
 
     // Extract metadata from form data
     const galleryDeletePassword = req.body.gallery_delete_password || undefined;
+    const galleryViewPassword = req.body.gallery_view_password || undefined;
     const metadata: LivePhotoMetadata = {
       id: req.body.id || uuidv4(),
       photoFile: finalPhotoFilename,
@@ -146,7 +147,8 @@ router.post('/', upload.fields([
       longitude: req.body.longitude ? parseFloat(req.body.longitude) : undefined,
       galleryId: galleryId,
       galleryName: galleryName,
-      galleryDeletePassword: galleryDeletePassword
+      galleryDeletePassword: galleryDeletePassword,
+      galleryViewPassword: galleryViewPassword
     };
 
     // Save metadata JSON
