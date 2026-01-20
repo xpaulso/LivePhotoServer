@@ -51,12 +51,6 @@ npm start
 
 ## Web Interface
 
-### Gallery List
-```
-GET /gallery
-```
-Browse all galleries with photo counts and last updated dates.
-
 ### Single Gallery
 ```
 GET /gallery/:galleryId?p=PASSWORD
@@ -208,7 +202,7 @@ Each gallery can have a view password for easy sharing:
 
 ## Version
 
-Current version: **1.3.0**
+Current version: **1.3.1**
 
 ## License
 
