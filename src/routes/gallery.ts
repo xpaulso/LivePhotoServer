@@ -1,67 +1,9 @@
 import { Router, Request, Response } from 'express';
 import fs from 'fs';
 import path from 'path';
-import { getUploadDir, LivePhotoMetadata, GalleryInfo } from '../utils/storage';
+import { getUploadDir, LivePhotoMetadata } from '../utils/storage';
 
 const router = Router();
-
-// List all galleries HTML page
-router.get('/', async (req: Request, res: Response) => {
-  try {
-    const uploadDir = getUploadDir();
-    const galleries: GalleryInfo[] = [];
-
-    if (fs.existsSync(uploadDir)) {
-      const galleryDirs = fs.readdirSync(uploadDir).filter(dir => {
-        if (dir === '.temp') return false;
-        const fullPath = path.join(uploadDir, dir);
-        return fs.statSync(fullPath).isDirectory();
-      });
-
-      for (const galleryDir of galleryDirs) {
-        const dirPath = path.join(uploadDir, galleryDir);
-        const files = fs.readdirSync(dirPath);
-        const metadataFiles = files.filter(f => f.endsWith('_metadata.json'));
-
-        let galleryName = galleryDir;
-        let lastUpdated = new Date(0).toISOString();
-
-        if (metadataFiles.length > 0) {
-          const firstMetadata = path.join(dirPath, metadataFiles[0]);
-          const content = fs.readFileSync(firstMetadata, 'utf-8');
-          const metadata = JSON.parse(content) as LivePhotoMetadata;
-          galleryName = metadata.galleryName || galleryDir;
-
-          for (const file of metadataFiles) {
-            const metadataPath = path.join(dirPath, file);
-            const metaContent = fs.readFileSync(metadataPath, 'utf-8');
-            const meta = JSON.parse(metaContent) as LivePhotoMetadata;
-            if (new Date(meta.uploadDate) > new Date(lastUpdated)) {
-              lastUpdated = meta.uploadDate;
-            }
-          }
-        }
-
-        galleries.push({
-          id: galleryDir,
-          name: galleryName,
-          photoCount: metadataFiles.length,
-          lastUpdated
-        });
-      }
-
-      galleries.sort((a, b) =>
-        new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime()
-      );
-    }
-
-    const html = renderGalleryListPage(galleries);
-    res.type('html').send(html);
-  } catch (error) {
-    console.error('Error rendering gallery list:', error);
-    res.status(500).send('Error loading galleries');
-  }
-});
 
 // Single gallery HTML page
 router.get('/:galleryId', async (req: Request, res: Response) => {
@@ -179,94 +121,6 @@ router.delete('/:galleryId', async (req: Request, res: Response) => {
   }
 });
 
-function renderGalleryListPage(galleries: GalleryInfo[]): string {
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Live Photo Galleries</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #1a1a1a;
-      color: #fff;
-      min-height: 100vh;
-      padding: 20px;
-    }
-    h1 {
-      text-align: center;
-      margin-bottom: 30px;
-      font-weight: 300;
-      font-size: 2em;
-    }
-    .count {
-      text-align: center;
-      color: #888;
-      margin-bottom: 30px;
-    }
-    .galleries {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-      gap: 20px;
-      max-width: 1200px;
-      margin: 0 auto;
-    }
-    .gallery-card {
-      background: #2a2a2a;
-      border-radius: 12px;
-      padding: 24px;
-      transition: transform 0.2s, background 0.2s;
-      cursor: pointer;
-      text-decoration: none;
-      color: inherit;
-      display: block;
-    }
-    .gallery-card:hover {
-      transform: scale(1.02);
-      background: #333;
-    }
-    .gallery-name {
-      font-size: 1.4em;
-      font-weight: 500;
-      margin-bottom: 12px;
-    }
-    .gallery-stats {
-      color: #888;
-      font-size: 14px;
-    }
-    .gallery-date {
-      color: #666;
-      font-size: 13px;
-      margin-top: 8px;
-    }
-    .empty {
-      text-align: center;
-      color: #666;
-      padding: 60px 20px;
-    }
-  </style>
-</head>
-<body>
-  <h1>Live Photo Galleries</h1>
-  <p class="count">${galleries.length} galler${galleries.length !== 1 ? 'ies' : 'y'}</p>
-
-  ${galleries.length === 0 ? '<p class="empty">No galleries yet</p>' : `
-  <div class="galleries">
-    ${galleries.map(gallery => `
-      <a href="/gallery/${gallery.id}" class="gallery-card">
-        <div class="gallery-name">${escapeHtml(gallery.name)}</div>
-        <div class="gallery-stats">${gallery.photoCount} photo${gallery.photoCount !== 1 ? 's' : ''}</div>
-        <div class="gallery-date">Last updated: ${new Date(gallery.lastUpdated).toLocaleDateString()}</div>
-      </a>
-    `).join('')}
-  </div>
-  `}
-</body>
-</html>`;
-}
-
 function renderPasswordPage(galleryId: string, galleryName: string, message: string): string {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -339,16 +193,6 @@ function renderPasswordPage(galleryId: string, galleryName: string, message: str
     button:hover {
       background: #3a8eef;
     }
-    .back-link {
-      color: #4a9eff;
-      text-decoration: none;
-      font-size: 14px;
-      display: inline-block;
-      margin-top: 20px;
-    }
-    .back-link:hover {
-      text-decoration: underline;
-    }
   </style>
 </head>
 <body>
@@ -359,7 +203,6 @@ function renderPasswordPage(galleryId: string, galleryName: string, message: str
       <input type="password" name="p" placeholder="Enter password" required autofocus>
       <button type="submit">View Gallery</button>
     </form>
-    <a href="/gallery" class="back-link">&larr; All Galleries</a>
   </div>
 </body>
 </html>`;
@@ -384,16 +227,6 @@ function renderGalleryPage(galleryName: string, photos: (LivePhotoMetadata & { p
     .header {
       text-align: center;
       margin-bottom: 30px;
-    }
-    .back-link {
-      color: #4a9eff;
-      text-decoration: none;
-      font-size: 14px;
-      display: inline-block;
-      margin-bottom: 15px;
-    }
-    .back-link:hover {
-      text-decoration: underline;
     }
     h1 {
       font-weight: 300;
@@ -511,7 +344,6 @@ function renderGalleryPage(galleryName: string, photos: (LivePhotoMetadata & { p
 </head>
 <body>
   <div class="header">
-    <a href="/gallery" class="back-link">&larr; All Galleries</a>
     <h1>${escapeHtml(galleryName)}</h1>
     <p class="count">${photos.length} photo${photos.length !== 1 ? 's' : ''}</p>
   </div>
